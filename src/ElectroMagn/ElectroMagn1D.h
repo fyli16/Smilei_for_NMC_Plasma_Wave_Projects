@@ -132,6 +132,9 @@ public:
     //! Ratio of the spatial-step by the time-step dx/dt for 1Dcartesian simulations
     double dx_ov_dt;
 
+    //fieldmask 
+    int i_glob_;
+
     //! compute Poynting on borders
     void computePoynting( unsigned int axis, unsigned int side ) override;
 

@@ -3,6 +3,8 @@
 
 #include "ElectroMagn.h"
 #include "Field1D.h"
+//fieldmask
+#include "ElectroMagn1D.h"
 
 MA_Solver1D_norm::MA_Solver1D_norm( Params &params )
     : Solver1D( params )
@@ -27,6 +29,10 @@ void MA_Solver1D_norm::operator()( ElectroMagn *fields )
     const double *const __restrict__ Jx1D = fields->Jx_->data(); // [x] : dual in x   primal in y,z
     const double *const __restrict__ Jy1D = fields->Jy_->data(); // [x] : dual in y   primal in x,z
     const double *const __restrict__ Jz1D = fields->Jz_->data(); // [x] : dual in z   primal in x,y 
+
+    //fieldmask
+    int i_glob    = ( static_cast<ElectroMagn1D *>( fields ) )->i_glob_;
+    float dx = ( static_cast<ElectroMagn1D *>( fields ) )->dx;
 
     // --------------------
     // Solve Maxwell-Ampere
@@ -65,8 +71,28 @@ void MA_Solver1D_norm::operator()( ElectroMagn *fields )
         #pragma omp simd
 #endif
     for( unsigned int ix=0 ; ix<nx_p ; ++ix ) {
-        Ey1D[ix] += -dt_ov_dx * ( Bz1D[ix+1] - Bz1D[ix] ) - dt * Jy1D[ix];
-        Ez1D[ix] +=  dt_ov_dx * ( By1D[ix+1] - By1D[ix] ) - dt * Jz1D[ix];
+        //original codes
+        // Ey1D[ix] += -dt_ov_dx * ( Bz1D[ix+1] - Bz1D[ix] ) - dt * Jy1D[ix];
+        // Ez1D[ix] +=  dt_ov_dx * ( By1D[ix+1] - By1D[ix] ) - dt * Jz1D[ix];
+        //fieldmask
+        // MESSAGE("i_glob="<<i_glob<<", ix="<<ix<<", nx_p="<<nx_p);
+        int ix_glob = i_glob + ix; // global index in the 1D grid
+        float x_glob = ix_glob * dx; // global position in the 1D grid 
+        // MESSAGE("x_glob="<<x_glob<<", ix="<<ix<<", nx_p="<<nx_p);
+        
+        float fm = 0.0;
+        float mask_coeff = 0.2;
+        if (x_glob <=25.0) {
+            fm = 1.0 - (mask_coeff*(x_glob-25.0)/25.0)*((mask_coeff*(x_glob-25.0)/25.0));
+        } else if (x_glob <= 71.0) {
+            fm = 1.0;
+        } else {
+            fm = 1.0 - (mask_coeff*(x_glob-71.0)/25.0)*(mask_coeff*(x_glob-71.0)/25.0);
+        }
+
+        // MESSAGE("x_glob="<<x_glob<<", fm="<<fm<<", ix="<<ix<<", nx_p="<<nx_p);
+        Ey1D[ix] = (Ey1D[ix] - dt_ov_dx * ( Bz1D[ix+1] - Bz1D[ix] ) - dt * Jy1D[ix])*fm;
+        Ez1D[ix] = (Ez1D[ix] + dt_ov_dx * ( By1D[ix+1] - By1D[ix] ) - dt * Jz1D[ix])*fm;
     }
 }
 

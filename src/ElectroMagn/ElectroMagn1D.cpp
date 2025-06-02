@@ -81,6 +81,9 @@ void ElectroMagn1D::initElectroMagn1DQuantities( Params &params, Patch *patch )
     dt_ov_dx = timestep/cell_length[0];
     dx_ov_dt = 1.0/dt_ov_dx;
 
+    //fieldmask 
+    i_glob_ = patch->getCellStartingGlobalIndex( 0 );
+
     // Electromagnetic fields
     // ----------------------
 

@@ -3,6 +3,8 @@
 
 #include "ElectroMagn.h"
 #include "Field1D.h"
+//fieldmask
+#include "ElectroMagn1D.h"
 
 MF_Solver1D_Yee::MF_Solver1D_Yee( Params &params )
     : Solver1D( params )
@@ -26,6 +28,10 @@ void MF_Solver1D_Yee::operator()( ElectroMagn *fields )
     
     double *const __restrict__ By1D       = fields->By_->data();// [ix] : dual in x,z primal in y
     double *const __restrict__ Bz1D       = fields->Bz_->data();// [ix] : dual in x,y primal in z
+
+    //fieldmask
+    int i_glob    = ( static_cast<ElectroMagn1D *>( fields ) )->i_glob_;
+    float dx = ( static_cast<ElectroMagn1D *>( fields ) )->dx;
     
     // ---------------------
     // Solve Maxwell-Faraday
@@ -47,8 +53,27 @@ void MF_Solver1D_Yee::operator()( ElectroMagn *fields )
     #pragma omp simd
 #endif
     for( unsigned int ix=1 ; ix<nx_d-1 ; ix++ ) {
-        By1D[ix] = By1D[ix] + dt_ov_dx * ( Ez1D[ix] - Ez1D[ix-1] );
-        Bz1D[ix] = Bz1D[ix] - dt_ov_dx * ( Ey1D[ix] - Ey1D[ix-1] );
+        //original codes
+        // By1D[ix] = By1D[ix] + dt_ov_dx * ( Ez1D[ix] - Ez1D[ix-1] );
+        // Bz1D[ix] = Bz1D[ix] - dt_ov_dx * ( Ey1D[ix] - Ey1D[ix-1] );
+        //fieldmask
+        // MESSAGE("i_glob="<<i_glob<<", ix="<<ix<<", nx_p="<<nx_p);
+        int ix_glob = i_glob + ix; // global index in the 1D grid
+        float x_glob = ix_glob * dx; // global position in the 1D grid 
+        // MESSAGE("x_glob="<<x_glob<<", ix="<<ix<<", nx_p="<<nx_p);
+        
+        float fm = 0.0;
+        float mask_coeff = 0.2;
+        if (x_glob <=25.0) {
+            fm = 1.0 - (mask_coeff*(x_glob-25.0)/25.0)*((mask_coeff*(x_glob-25.0)/25.0));
+        } else if (x_glob <= 71.0) {
+            fm = 1.0;
+        } else {
+            fm = 1.0 - (mask_coeff*(x_glob-71.0)/25.0)*(mask_coeff*(x_glob-71.0)/25.0);
+        }
+
+        By1D[ix] = (By1D[ix] + dt_ov_dx * ( Ez1D[ix] - Ez1D[ix-1] ))*fm;
+        Bz1D[ix] = (Bz1D[ix] - dt_ov_dx * ( Ey1D[ix] - Ey1D[ix-1] ))*fm;
     }
 
 }
